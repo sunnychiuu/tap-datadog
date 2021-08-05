@@ -29,11 +29,10 @@ def get_abs_path(path):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
 
 # Load schemas from schemas folder
-def load_schemas():
+def load_schemas(config):
     schemas = {}
-
-    for filename in os.listdir(get_abs_path('schemas')):
-        path = get_abs_path('schemas') + '/' + filename
+    for filename in os.listdir(config["schema_path"]):
+        path = config["schema_path"] + '/' + filename
         file_raw = filename.replace('.json', '')
         with open(path) as file:
             schemas[file_raw] = simplejson.load(file)
@@ -42,9 +41,9 @@ def load_schemas():
 
 
 
-def load_schema(tap_stream_id):
-    path = "schemas/{}.json".format(tap_stream_id)
-    schema = utils.load_json(get_abs_path(path))
+def load_schema(tap_stream_id, config):
+    path = config["schema_path"] + f'/{tap_stream_id}.json'
+    schema = utils.load_json(path)
     refs = schema.pop("definitions", {})
     if refs:
         singer.resolve_schema_references(schema, refs)
@@ -64,14 +63,14 @@ def generate_metadata(schema_name, schema):
     return metadata.to_list(mdata)
 
 
-def discover():
+def discover(config):
     
     streams = []
 
     for schema_name in SCHEMA_PRIMARY_KEYS.keys():
 
         # TODO: populate any metadata and stream's key properties here..
-        schema = load_schema(schema_name) 
+        schema = load_schema(schema_name, config) 
         stream_metadata = generate_metadata(schema_name, schema)
         stream_key_properties = SCHEMA_PRIMARY_KEYS[schema_name]
 
@@ -127,19 +126,18 @@ def sync(config, state, catalog):
 def main():
     # Parse command line arguments
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-
+    config = args.config
     # If discover flag was passed, run discovery mode and dump output to stdout
     if args.discover:
-        catalog = discover()
+        catalog = discover(config)
         print(simplejson.dumps(catalog, indent=2))
     # Otherwise run in sync mode
     else:
         if args.catalog:
             catalog = args.catalog
         else:
-            catalog = discover()
-
-        config = args.config
+            catalog = discover(config)
+        
         state = {
             "bookmarks": {
 
